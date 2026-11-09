@@ -1,0 +1,80 @@
+% Local extension of NiCad's TXL Java grammar (java.grm v5.0, April 2024)
+% for Java 14-21 syntax it does not parse.
+%
+% UNTESTED: written against Open-NiCad commit 7a90d11 but not run through txlc.
+% Test it with the file ModernJava.java before using it on real data.
+%
+% Install:
+%   1. Copy this file to Open-NiCad/src/txl/
+%   2. Add this line at the very end of Open-NiCad/src/txl/java.grm:
+%          include "java-modern.grm"
+%   3. Rebuild the TXL programs. The Makefile's %.x rule depends only on the
+%      .txl file, not on java.grm, so a plain `make` will NOT pick up the change:
+%          cd Open-NiCad/src/txl && make clean && make
+%   4. Quick parse test (java.txl is the grammar's own test program):
+%          txl ModernJava.java java.txl
+%
+% The new words (sealed, non-sealed, permits, yield, when) are contextual
+% keywords in Java, so they are deliberately NOT added to `keys`: code that
+% uses them as ordinary identifiers must keep parsing. The grammar already
+% handles 'record and 'enum the same way.
+
+% ---------------------------------------------------------------------------
+% Java 17 (JEP 409): sealed classes and interfaces
+%   public sealed interface Shape permits Circle, Square {}
+%   public non-sealed class Square implements Shape {}
+% ---------------------------------------------------------------------------
+
+redefine modifier
+        ...
+    |   'sealed
+    |   [SPOFF] 'non '- 'sealed [SPON]      % keep "non-sealed" as one word in output
+end redefine
+
+define permits_clause
+    'permits [list qualified_name+]
+end define
+
+redefine class_header
+    'class [class_name] [opt extends_clause] [opt implements_clause] [opt permits_clause]
+end redefine
+
+redefine interface_header
+    [opt '@] 'interface [interface_name] [opt extends_clause] [opt implements_clause] [opt permits_clause]
+end redefine
+
+% ---------------------------------------------------------------------------
+% Java 14 (JEP 361): yield inside switch-expression blocks
+%   case 1 -> { log(); yield "one"; }
+% ---------------------------------------------------------------------------
+
+define yield_statement
+    'yield [expression] ';                  [NL]
+end define
+
+redefine statement
+        ...
+    |   [yield_statement]
+end redefine
+
+% ---------------------------------------------------------------------------
+% Java 21 (JEP 440/441): patterns in switch labels, with optional guards
+%   case Circle c -> ...
+%   case Point(int x, var y) when x > 0 -> ...
+% The original 'case [list constant_expression+] alternative is tried first,
+% so ordinary case labels parse exactly as before.
+% ---------------------------------------------------------------------------
+
+define case_pattern
+        [type_specifier] '( [list case_pattern] ')      % record pattern
+    |   [repeat modifier] [type_specifier] [id]          % type pattern
+end define
+
+define case_guard
+    'when [expression]
+end define
+
+redefine switch_label
+        ...
+    |   'case [case_pattern] [opt case_guard] [colon_or_arrow]
+end redefine
