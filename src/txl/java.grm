@@ -1090,3 +1090,5 @@ define and_type_spec
 end define
 
 % END
+
+include "java-modern.grm"
